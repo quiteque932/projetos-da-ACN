@@ -90,10 +90,21 @@ def Registrar_Veiculo():
     
     while True:
         matricula = input("Insira a matrícula do carro (ex: LD-12-34-FZ):\n").upper()
-        if not re.match(padrao, matricula):
+        if (not (re.match(padrao, matricula))):
             limpar_tela()
             print("Formato inválido! Tente novamente.")
             continue
+        
+        # Verificar se veículo já está estacionado
+        cursor.execute("""
+            SELECT 1 FROM viaturas_entrada 
+            INNER JOIN vaga ON viaturas_entrada.lugar_id = vaga.id 
+            WHERE matricula = ? AND ocupado = 1
+        """, (matricula,))
+        if cursor.fetchone():
+            limpar_tela()
+            print("Este veículo já está registrado como estacionado.")
+            return Menu_Principal()
 
         if Listar_Vagas() == 0:
             limpar_tela()
@@ -110,11 +121,13 @@ def Registrar_Veiculo():
                 return Menu_Principal()
             else:
                 limpar_tela()
-                print("\nErro ao registrar o carro. Tente novamente.")
+                print("\n Erro ao registrar o carro. Tente novamente.")
+                return Menu_Principal()
 
 #Registrar saída do veículo:
 
 def registrar_Saida():
+    limpar_tela()
     matricula = input("Informe a matrícula do carro para registrar a saída:\n")
     
     cursor.execute("""
@@ -131,9 +144,10 @@ def registrar_Saida():
         conexao.commit()
         Inserir_Dados_Bd_Saida(matricula)
         print("Saída registrada com sucesso!\n")
+        return Menu_Principal()
     else:
         print("Matrícula não encontrada.\n")
-        Menu_Principal()
+        return Menu_Principal()
 
 #Mostrar viaturas estacionadas:
 
@@ -168,19 +182,49 @@ def Listar_Vagas():
         print("Nenhuma vaga disponível.")
         return 0
 
+#CONSULTAR VAGAS DISPONIVEIS
+def Consultar_Vaga_Especifica():
+    limpar_tela()
+    cod_vaga = input("Digite o código da vaga que deseja consultar (ex: A1, B2): ").strip().upper()
+
+    # Verifica se a vaga existe e está ocupada
+    cursor.execute("SELECT id, ocupado FROM vaga WHERE codigo = ?", (cod_vaga,))
+    resultado = cursor.fetchone()
+
+    if not resultado:
+        print("Vaga não encontrada.\n")
+    else:
+        vaga_id, ocupado = resultado
+        if ocupado == 0:
+            print(f"A vaga {cod_vaga} está livre.\n")
+        else:
+            cursor.execute("""
+                SELECT matricula, entrada FROM viaturas_entrada
+                WHERE lugar_id = ? ORDER BY entrada DESC LIMIT 1
+            """, (vaga_id,))
+            carro = cursor.fetchone()
+            print(f"A vaga {cod_vaga} está ocupada pelo carro com matrícula: {carro[0]}")
+            print(f"Horário de entrada: {carro[1]}\n")
+    
+    input("Pressione Enter para voltar ao menu...")
+    return Menu_Principal()
+
 # FUNÇÃO ADMINISTRADOR
 
 def InserirVaga():
     user = input("Digite seu usuário: ")
     password = input("Digite sua senha: ")
     
-    if user == "Dario" and password == "1234":
+    if (user == "Dario" and password == "1234"):
         print("Login como administrador bem-sucedido.\n")
         while True:
             vaga = input("Insira o código da nova vaga: ")
-            cursor.execute("INSERT INTO vaga (codigo) VALUES (?)", (vaga,))
-            conexao.commit()
-            print("Vaga inserida com sucesso.\n")
+            try:
+                cursor.execute("INSERT INTO vaga (codigo) VALUES (?)", (vaga,))
+                conexao.commit()
+                print("Vaga inserida com sucesso.\n")
+            except sqlite3.IntegrityError:
+                print("Código de vaga já existe! Tente outro.\n")
 
             if input("Deseja sair? (S/N): ").upper() == "S":
                 limpar_tela()
@@ -188,52 +232,62 @@ def InserirVaga():
     else:
         limpar_tela()
         print("Usuário ou senha incorretos.\n")
-        InserirVaga()
+        return InserirVaga()
 
 #MENU PRINCIPAL DO SISTEMA
 
 def Menu_Principal():
+   while True: 
     print("\n\t SISTEMA DE GESTÃO DE PARQUE")
     print("\n============== MENU PRINCIPAL ==============")
     print("|    1 - Registrar entrada de veículo      |")
     print("|    2 - Registrar saída de veículo        |")
     print("|    3 - Consultar vagas disponíveis       |")
     print("|    4 - Mostrar viaturas estacionadas     |")
-    print("|    5 - Admin (Adicionar vagas)           |")
-    print("|    6 - Sair do programa                  |")
+    print("|    5 - Consultar vaga por código        |")
+    print("|    6 - Admin (Adicionar vagas)           |")
+    print("|    7 - Sair do programa                  |")
     print("============================================")
     
     try:
         escolha = int(input("Escolha uma opção: "))
     except ValueError:
         limpar_tela()
-        print("Opção inválida. Digite um número.")
-        return Menu_Principal()
+        print("Opção inválida. Digite um número para Representar uma das opções!\n.")
+        continue
     
     if escolha == 1:
+        limpar_tela()
         Registrar_Veiculo()
     elif escolha == 2:
+        limpar_tela()
         registrar_Saida()
     elif escolha == 3:
+        limpar_tela()
         Listar_Vagas()
         return Menu_Principal()
     elif escolha == 4:
+        limpar_tela()
         Mostrar_Viaturas_Estacionadas()
         return Menu_Principal()
     elif escolha == 5:
-        InserirVaga()
+        limpar_tela()
+        Consultar_Vaga_Especifica()
     elif escolha == 6:
+        limpar_tela()
+        InserirVaga()
+    elif escolha == 7:
+        limpar_tela()
         print("Obrigado por utilizar o sistema! Até logo.")
         conexao.close()
+        break
     else:
+        limpar_tela()
         print("Opção inválida. Tente novamente.")
-        Menu_Principal()
+
 
 # Criação das tabelas (apenas na primeira execução)
 criar_tabelas_com_lugares()
 
 # Iniciar o programa
 Menu_Principal()
-
-
-conexao.close()
